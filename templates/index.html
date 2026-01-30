@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Детекция собак без намордников</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-dog"></i> Детекция собак без намордников</h1>
+            <p class="subtitle">Загрузите изображение для анализа</p>
+        </header>
+
+        <main>
+            <!-- Панель загрузки -->
+            <div class="upload-section">
+                <div class="upload-box" id="dropArea">
+                    <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                    <h3>Перетащите файл сюда</h3>
+                    <p>или</p>
+                    <input type="file" id="fileInput" accept="image/*,video/*" hidden>
+                    <button class="btn" onclick="document.getElementById('fileInput').click()">
+                        Выберите файл
+                    </button>
+                    <p class="file-info">Поддерживаемые форматы: JPG, PNG, JPEG</p>
+                </div>
+            </div>
+
+            <!-- Результаты -->
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <h2><i class="fas fa-chart-bar"></i> Результаты анализа</h2>
+
+                <div class="stats">
+                    <div class="stat-card">
+                        <h3>Всего собак</h3>
+                        <p id="totalDogs">0</p>
+                    </div>
+                    <div class="stat-card safe">
+                        <h3>В намордниках</h3>
+                        <p id="withMuzzle">0</p>
+                    </div>
+                    <div class="stat-card danger">
+                        <h3>Без намордников</h3>
+                        <p id="withoutMuzzle">0</p>
+                    </div>
+                </div>
+
+                <div class="images">
+                    <div class="image-container">
+                        <h3>Оригинал</h3>
+                        <img id="originalImage" src="" alt="Оригинальное изображение">
+                    </div>
+                    <div class="image-container">
+                        <h3>Результат детекции</h3>
+                        <img id="processedImage" src="" alt="Обработанное изображение">
+                    </div>
+                </div>
+
+                <div class="detections-list">
+                    <h3><i class="fas fa-list"></i> Обнаруженные объекты</h3>
+                    <table id="detectionsTable">
+                        <thead>
+                            <tr>
+                                <th>№</th>
+                                <th>Класс</th>
+                                <th>Уверенность</th>
+                                <th>Координаты</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Заполнится JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- История -->
+            <div class="history-section">
+                <h2><i class="fas fa-history"></i> История запросов</h2>
+                <button class="btn" onclick="loadHistory()">
+                    <i class="fas fa-sync-alt"></i>  Обновить
+                </button>
+                <button class="btn danger" onclick="clearHistory()">
+                    <i class="fas fa-trash"></i>  Очистить историю
+                </button>
+                <button class="btn success" onclick="generateReport()">
+                    <i class="fas fa-file-pdf"></i>  Создать отчет
+                </button>
+
+                <div class="history-list" id="historyList">
+                    <!-- Заполнится JavaScript -->
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Система детекции собак без намордников в общественных местах</p>
+        </footer>
+    </div>
+
+    <script>
+        // Элементы DOM
+        const fileInput = document.getElementById('fileInput');
+        const dropArea = document.getElementById('dropArea');
+        const resultsSection = document.getElementById('resultsSection');
+
+        // Обработчики drag & drop
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.style.borderColor = '#4CAF50';
+        });
+
+        dropArea.addEventListener('dragleave', () => {
+            dropArea.style.borderColor = '#ddd';
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.style.borderColor = '#ddd';
+
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // Обработка файла
+        async function handleFile(file) {
+            if (!file.type.match('image.*') && !file.type.match('video.*')) {
+                alert('Пожалуйста, выберите изображение или видео');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    displayResults(result);
+                } else {
+                    alert('Ошибка: ' + result.error);
+                }
+            } catch (error) {
+                alert('Ошибка при загрузке файла');
+                console.error(error);
+            }
+        }
+
+        // Замените старую функцию displayResults на эту:
+        function displayResults(data) {
+            console.log('Получены данные:', data);  // Для отладки
+
+            // Обновляем статистику
+            document.getElementById('totalDogs').textContent = data.stats.total_dogs;
+            document.getElementById('withMuzzle').textContent = data.stats.with_muzzle;
+            document.getElementById('withoutMuzzle').textContent = data.stats.without_muzzle;
+
+            // Показываем изображения с добавлением временной метки для избежания кеширования
+            if (data.original_url) {
+                const originalImg = document.getElementById('originalImage');
+                originalImg.src = data.original_url + '?t=' + Date.now();
+                originalImg.onerror = function() {
+                    this.src = '/static/placeholder.jpg';
+                };
+            }
+
+            if (data.processed_url) {
+                const processedImg = document.getElementById('processedImage');
+                processedImg.src = data.processed_url + '?t=' + Date.now();
+                processedImg.onerror = function() {
+                    this.src = '/static/placeholder.jpg';
+                };
+            }
+
+            // Заполняем таблицу детекций
+            const tableBody = document.querySelector('#detectionsTable tbody');
+            tableBody.innerHTML = '';
+
+            if (data.detections && data.detections.length > 0) {
+                data.detections.forEach((det, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td><span class="label ${det.label}">${det.label}</span></td>
+                        <td>${det.confidence.toFixed(2)}</td>
+                        <td>[${det.bbox.join(', ')}]</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } else {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="4" style="text-align: center; color: #666;">Собаки не обнаружены</td>`;
+                tableBody.appendChild(row);
+            }
+
+            // Показываем секцию результатов
+            resultsSection.style.display = 'block';
+
+            // Прокручиваем к результатам
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+
+            // Обновляем историю
+            loadHistory();
+        }
+
+        // Загрузка истории
+        async function loadHistory() {
+            try {
+                const response = await fetch('/history');
+                const history = await response.json();
+
+                const historyList = document.getElementById('historyList');
+                historyList.innerHTML = '';
+
+                history.reverse().forEach(record => {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'history-item';
+
+                    const date = new Date(record.timestamp).toLocaleString();
+
+                    historyItem.innerHTML = `
+                        <div class="history-header">
+                            <span><i class="far fa-file-image"></i> ${record.filename}</span>
+                            <span>${date}</span>
+                        </div>
+                        <div class="history-stats">
+                            <span>Собак: ${record.stats.total_dogs}</span>
+                            <span class="safe">В наморднике: ${record.stats.with_muzzle}</span>
+                            <span class="danger">Без намордника: ${record.stats.without_muzzle}</span>
+                        </div>
+                    `;
+
+                    historyList.appendChild(historyItem);
+                });
+            } catch (error) {
+                console.error('Ошибка загрузки истории:', error);
+            }
+        }
+
+        // Очистка истории
+        async function clearHistory() {
+            if (confirm('Вы уверены, что хотите очистить историю?')) {
+                try {
+                    await fetch('/clear_history', { method: 'POST' });
+                    loadHistory();
+                } catch (error) {
+                    console.error('Ошибка очистки истории:', error);
+                }
+            }
+        }
+
+        // Генерация отчета
+        async function generateReport() {
+            try {
+                const response = await fetch('/report');
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'detection_report.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                } else {
+                    alert('Ошибка генерации отчета');
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+            }
+        }
+
+        // Загружаем историю при старте
+        loadHistory();
+    </script>
+</body>
+</html>
